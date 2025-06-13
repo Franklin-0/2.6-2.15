@@ -3,23 +3,29 @@ import personService from './services/personService'
 import PersonForm from './components/PersonForm'
 import Persons from './components/Persons'
 import Filter from './components/Filter'
+import Notification from './components/Notification'
 
 const App = () => {
   const [persons, setPersons] = useState([])
   const [newName, setNewName] = useState('')
   const [newNumber, setNewNumber] = useState('')
   const [filter, setFilter] = useState('')
+  const [notification, setNotification] = useState({ message: null, type: null })
 
-  // Fetch data from backend on mount
   useEffect(() => {
     personService
       .getAll()
-      .then(initialPersons => {
-        setPersons(initialPersons)
+      .then(initialPersons => setPersons(initialPersons))
+      .catch(error => {
+        showNotification('Failed to load contacts', 'error')
       })
   }, [])
 
-  // Handle form submission: add or update
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type })
+    setTimeout(() => setNotification({ message: null, type: null }), 5000)
+  }
+
   const addPerson = (event) => {
     event.preventDefault()
 
@@ -38,6 +44,11 @@ const App = () => {
             setPersons(persons.map(p => p.id !== existing.id ? p : updatedPerson))
             setNewName('')
             setNewNumber('')
+            showNotification(`Updated ${updatedPerson.name}`)
+          })
+          .catch(error => {
+            showNotification(`Information of ${existing.name} has already been removed from server`, 'error')
+            setPersons(persons.filter(p => p.id !== existing.id))
           })
       }
 
@@ -48,24 +59,32 @@ const App = () => {
           setPersons(persons.concat(addedPerson))
           setNewName('')
           setNewNumber('')
+          showNotification(`Added ${addedPerson.name}`)
+        })
+        .catch(error => {
+          showNotification('Failed to add person', 'error')
         })
     }
   }
 
-  // Delete a person by ID
   const deletePerson = (id) => {
     const person = persons.find(p => p.id === id)
+    if (!person) return
 
     if (window.confirm(`Delete ${person.name}?`)) {
       personService
         .remove(id)
         .then(() => {
           setPersons(persons.filter(p => p.id !== id))
+          showNotification(`Deleted ${person.name}`)
+        })
+        .catch(error => {
+          showNotification(`Failed to delete ${person.name}. They may have already been removed.`, 'error')
+          setPersons(persons.filter(p => p.id !== id))
         })
     }
   }
 
-  // Filter persons by search input
   const personsToShow = filter
     ? persons.filter(p => p.name.toLowerCase().includes(filter.toLowerCase()))
     : persons
@@ -73,6 +92,8 @@ const App = () => {
   return (
     <div>
       <h2>Phonebook</h2>
+
+      <Notification message={notification.message} type={notification.type} />
 
       <Filter value={filter} onChange={e => setFilter(e.target.value)} />
 
